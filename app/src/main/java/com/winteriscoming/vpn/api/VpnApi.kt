@@ -49,7 +49,7 @@ class VpnApi(baseUrl: String, private val http: OkHttpClient = defaultClient()) 
     /** `/me` reports plan and days_left so the UI can show "expires in N days". */
     override fun me(): JSONObject = get("/api/v1/me", requireToken())
 
-    override fun createDevice(name: String, platform: String = "android"): String {
+    override fun createDevice(name: String, platform: String): String {
         val body = JSONObject().put("name", name).put("platform", platform)
         return post("/api/v1/devices", body, requireToken()).getString("id")
     }

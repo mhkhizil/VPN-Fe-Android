@@ -56,7 +56,7 @@ object TunnelNotification {
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Winter VPN")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.stat_sys_vpn_ic)
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setOngoing(true)
             .setContentIntent(open)
             .setPriority(NotificationCompat.PRIORITY_LOW)

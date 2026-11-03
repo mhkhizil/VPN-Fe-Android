@@ -5,6 +5,7 @@ import android.content.Context
 import com.winteriscoming.vpn.api.PeerConfig
 import com.wireguard.android.backend.Backend
 import com.wireguard.android.backend.GoBackend
+import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,21 +42,21 @@ class WireguardTunnelEngine(private val context: Context) : TunnelEngine {
             // Config.parse is the library's own wg-quick parser: the same text a user
             // would paste into the official app.
             val wgConfig = Config.parse(ini.byteInputStream())
-            backend.setState(service, Backend.State.UP, wgConfig)
+            backend.setState(service, Tunnel.State.UP, wgConfig)
             _state.value = TunnelState.Up(sinceEpochSeconds = System.currentTimeMillis() / 1000)
         } catch (e: Exception) {
             // Never surface the config text: it contains the private key.
             _state.value = TunnelState.Failed(
                 "Could not bring the tunnel up: ${e.javaClass.simpleName}",
             )
-            runCatching { backend.setState(service, Backend.State.DOWN, null) }
+            runCatching { backend.setState(service, Tunnel.State.DOWN, null) }
         }
     }
 
     override suspend fun disconnect() {
         val service = WgTunnelService.instance
         if (service != null) {
-            runCatching { backend.setState(service, Backend.State.DOWN, null) }
+            runCatching { backend.setState(service, Tunnel.State.DOWN, null) }
         }
         _state.value = TunnelState.Down
     }

@@ -1,8 +1,11 @@
 // Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
 package com.winteriscoming.vpn.tunnel
 
+import android.app.NotificationManager
 import android.content.Intent
+import android.os.Build
 import com.wireguard.android.backend.GoBackend
+import com.wireguard.android.backend.Tunnel
 
 /**
  * The VPN service the system binds to when the user approves the tunnel.
@@ -16,7 +19,29 @@ import com.wireguard.android.backend.GoBackend
  * Note: the exact member names below come from the AAR's javadoc; the first CI
  * build is what confirms them, since this machine has no Android SDK.
  */
-class WgTunnelService : GoBackend.VpnService() {
+class WgTunnelService : GoBackend.VpnService(), Tunnel {
+
+    // The backend needs a Tunnel handle: the documented embedding path is to
+    // implement this ourselves and hand `this` to GoBackend.setState. GoBackend.VpnService
+    // is only the VpnService base (it does not implement Tunnel), which the first CI
+    // compile told us in as many words.
+    override fun getName(): String = "winter-vpn"
+
+    override fun onStateChange(newState: Tunnel.State) {
+        TunnelNotification.ensureChannel(this)
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.notify(
+            TunnelNotification.NOTIFICATION_ID,
+            TunnelNotification.build(
+                this,
+                if (newState == Tunnel.State.UP) "Tunnel active" else "Tunnel down",
+            ),
+        )
+        if (newState == Tunnel.State.DOWN) {
+            // No tunnel, no reason to keep a foreground service (and its notification).
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
+    }
 
     companion object {
         /** Set while the service is alive; [WireguardTunnelEngine] needs the handle. */
