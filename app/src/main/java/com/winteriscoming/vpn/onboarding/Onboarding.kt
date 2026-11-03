@@ -7,6 +7,7 @@ import com.winteriscoming.vpn.api.VpnApi
 import com.winteriscoming.vpn.data.KeyPairFactory
 import com.winteriscoming.vpn.data.SecretStore
 import com.winteriscoming.vpn.data.SessionStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -96,6 +97,11 @@ class OnboardingRepository(
             } else {
                 OnboardingOutcome.Failed(e.message)
             }
+        } catch (e: CancellationException) {
+            // Cancellation is not a failure: the screen went away. Swallowing it here
+            // would let the pipeline keep going - and write the private key - after the
+            // caller's scope is gone, and would break structured concurrency upstream.
+            throw e
         } catch (e: Exception) {
             OnboardingOutcome.Failed(e.message ?: "onboarding failed")
         }

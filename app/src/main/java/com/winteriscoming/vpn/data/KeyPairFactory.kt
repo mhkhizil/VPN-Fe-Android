@@ -11,7 +11,16 @@ data class GeneratedKeyPair(
     val publicKeyHex: String,
     /** Base64, for the tunnel configuration the library wants. */
     val publicKeyBase64: String,
-)
+) {
+    /**
+     * Redacted on purpose. The generated `data class` toString() would print the
+     * private key into any log line, crash report or debugger expression that touches
+     * this object - the one string in this app that must never be printed.
+     */
+    override fun toString(): String =
+        "GeneratedKeyPair(privateKey=<redacted>, publicKeyHex=$publicKeyHex, " +
+            "publicKeyBase64=$publicKeyBase64)"
+}
 
 /**
  * Key generation is behind an interface so that onboarding logic can be tested on

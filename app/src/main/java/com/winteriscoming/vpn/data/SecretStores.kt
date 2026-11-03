@@ -51,13 +51,22 @@ interface SessionStore {
 /** Keystore-wrapped key material + EncryptedSharedPreferences for the ciphertext. */
 class KeystoreSecretStore(context: Context) : SecretStore {
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "vpn-secrets",
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val appContext: Context = context.applicationContext
+
+    // Lazy on purpose: EncryptedSharedPreferences.create() generates or unwraps the
+    // master key through the AndroidKeyStore, which is binder IPC plus disk. Doing it
+    // in the constructor means MainActivity.onCreate pays that cost on the first frame.
+    // Nothing touches this store from the UI thread any more, so first use is already
+    // on a background dispatcher.
+    private val prefs: SharedPreferences by lazy {
+        EncryptedSharedPreferences.create(
+            appContext,
+            "vpn-secrets",
+            MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
 
     override fun storePrivateKey(base64: String) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -122,13 +131,19 @@ class KeystoreSecretStore(context: Context) : SecretStore {
 /** Token and identity: EncryptedSharedPreferences, never plain SharedPreferences. */
 class PrefsSessionStore(context: Context) : SessionStore {
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "vpn-session",
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val appContext: Context = context.applicationContext
+
+    // Lazy for the same reason as KeystoreSecretStore: create() touches the Keystore and
+    // disk, and MainActivity used to pay for it during onCreate.
+    private val prefs: SharedPreferences by lazy {
+        EncryptedSharedPreferences.create(
+            appContext,
+            "vpn-session",
+            MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
 
     override var accessToken: String?
         get() = prefs.getString("access_token", null)

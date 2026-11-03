@@ -66,7 +66,7 @@ Recorded here because a client claim is only as good as the server it talks to.
 
 ## The one-line summary
 
-The client **builds, passes 28 unit tests, lints clean, and produces a signed APK**;
+The client **builds, passes 30 unit tests, lints clean, and produces a signed APK**;
 nothing that requires a device or a Linux host has been executed, so "it works as a
 VPN" is still a claim about code, not about behaviour.
 
@@ -88,9 +88,27 @@ the thread drawing the first frame: jank at best, ANR at worst.
   on the caller's thread. Mutation-checked: putting `Dispatchers.Unconfined` back
   makes exactly that test fail, so it is a real guard and not decoration.
 
+Also fixed from the same audit (`AUDIT-2026-11-03.md` has the full 12-row table with
+file:line): `CancellationException` is no longer swallowed by the generic catch; both
+secret stores build `EncryptedSharedPreferences` lazily so `onCreate` does no Keystore
+work; `WireguardTunnelEngine` takes the JNI `setState` and TUN allocation off the main
+thread and tears down under `NonCancellable` on cancellation; a process-wide
+`VpnGraph` replaces the per-Activity graph, so a rotation no longer builds a second
+`GoBackend`, abandons an `OkHttpClient`, or redraws an active tunnel as
+"disconnected"; `connect` waits up to 2 s for the foreground service instead of
+reporting a false failure right after consent; `GeneratedKeyPair.toString()` redacts
+the private key, pinned by `GeneratedKeyPairTest`; responses are read through
+`peekBody(64 KiB)` instead of an unbounded `body.string()`.
+
+Still open, named rather than hidden: the app's own API traffic still egresses through
+the tunnel (the tunnel library exposes no `addDisallowedApplication`), the bearer token
+is never rehydrated or rotated, there is no recovery path if the Keystore is reset, and
+recomposition hygiene in `VpnScreen` is unaddressed.
+
 ```
-tests=28 failures=0        (was 27 before this test)
+tests=30 failures=0        (27 -> 28 -> 30 across this pass)
 lintDebug: BUILD SUCCESSFUL, 11 warnings, 0 errors
+assembleDebug: app-debug.apk, 24 MB, signed and installable
 ```
 
 Checked and found **clean**, so no change was made: no `android.util.Log` call exists

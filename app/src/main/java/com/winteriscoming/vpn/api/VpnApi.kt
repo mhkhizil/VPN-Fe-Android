@@ -90,7 +90,10 @@ class VpnApi(baseUrl: String, private val http: OkHttpClient = defaultClient()) 
         if (token != null) builder.header("Authorization", "Bearer $token")
         builder.header("Accept", "application/json")
         http.newCall(builder.build()).execute().use { response ->
-            val text = response.body?.string().orEmpty()
+            // Bounded read. peekBody(n) reads at most n bytes, so a hostile or
+            // misconfigured endpoint cannot make this process allocate megabytes, and
+            // the error path reuses the same text instead of reading the body twice.
+            val text = response.peekBody(MAX_BODY_BYTES).string()
             if (!response.isSuccessful) {
                 throw ApiException(response.code, problemDetail(text))
             }
@@ -111,6 +114,9 @@ class VpnApi(baseUrl: String, private val http: OkHttpClient = defaultClient()) 
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
+
+        /** Far more than any endpoint returns; a bound, not a target. */
+        private const val MAX_BODY_BYTES = 64L * 1024
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)

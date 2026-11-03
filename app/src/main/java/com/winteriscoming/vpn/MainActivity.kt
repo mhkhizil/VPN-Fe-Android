@@ -1,6 +1,7 @@
 // Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
 package com.winteriscoming.vpn
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,25 +33,55 @@ import com.winteriscoming.vpn.ui.theme.WinterVpnTheme
 import kotlinx.coroutines.launch
 
 /**
- * Wiring only: controllers are constructed here, rendering is [VpnScreen], and the
- * only Android-specific logic is the VPN consent handshake and starting the service.
+ * Wiring only: controllers are constructed in [VpnGraph], rendering is [VpnScreen], and
+ * the only Android-specific logic is the VPN consent handshake and starting the service.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val repository = OnboardingRepository(
-            api = VpnApi(BuildConfig.API_BASE_URL),
-            secrets = KeystoreSecretStore(applicationContext),
-            session = PrefsSessionStore(applicationContext),
-            keys = WgKeyPairFactory(),
-        )
-        val onboarding = OnboardingController(repository)
-        val tunnel = TunnelController(repository, WireguardTunnelEngine(applicationContext))
+        val graph = VpnGraph.of(applicationContext)
+        val onboarding = graph.onboarding
+        val tunnel = graph.tunnel
         setContent {
             WinterVpnTheme {
                 VpnRoot(onboarding, tunnel)
             }
         }
+    }
+}
+
+/**
+ * One object graph per process, not per Activity.
+ *
+ * This used to be built inside `onCreate`. Every rotation then created a new
+ * [com.wireguard.android.backend.GoBackend] - which is `AutoCloseable` and was never
+ * closed, so its worker thread and VPN-service connection outlived the Activity - a new
+ * OkHttpClient (thread pool and connection pool abandoned), and a fresh
+ * [WireguardTunnelEngine] whose state starts at `Down`, so a rotation during an active
+ * connection redrew the UI as "disconnected" while the tunnel was up.
+ *
+ * Holds only the application context, so nothing here can leak an Activity.
+ */
+internal class VpnGraph private constructor(context: Context) {
+
+    private val repository = OnboardingRepository(
+        api = VpnApi(BuildConfig.API_BASE_URL),
+        secrets = KeystoreSecretStore(context),
+        session = PrefsSessionStore(context),
+        keys = WgKeyPairFactory(),
+    )
+
+    val onboarding = OnboardingController(repository)
+    val tunnel = TunnelController(repository, WireguardTunnelEngine(context))
+
+    companion object {
+        @Volatile
+        private var instance: VpnGraph? = null
+
+        fun of(context: Context): VpnGraph =
+            instance ?: synchronized(this) {
+                instance ?: VpnGraph(context.applicationContext).also { instance = it }
+            }
     }
 }
 
