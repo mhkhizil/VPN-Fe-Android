@@ -27,6 +27,14 @@ class WgTunnelService : GoBackend.VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         instance = this
+        // A VpnService that stays up must be a foreground service with a visible
+        // notification; on API 34+ the type comes from the manifest's
+        // android:foregroundServiceType="specialUse".
+        TunnelNotification.ensureChannel(this)
+        startForeground(
+            TunnelNotification.NOTIFICATION_ID,
+            TunnelNotification.build(this, "Tunnel active"),
+        )
         // START_STICKY: if the process is killed while the tunnel is up, the system
         // recreates the service and the library re-establishes from the last config.
         return START_STICKY

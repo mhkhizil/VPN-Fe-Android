@@ -6,7 +6,7 @@ Server and client live in separate repositories on purpose: they ship on differe
 cadences, have different toolchains, and the client must be able to pin a server
 contract version independently.
 
-**Status: Phase 2 (onboarding) implemented — still never compiled.** This repository has been built only by its CI
+**Status: Phases 1-3 implemented (skeleton, onboarding, tunnel) — still never compiled.** This repository has been built only by its CI
 lane — no developer machine with a JDK/Android SDK/NDK has run it yet. Treat the
 first green CI run as the moment the code exists.
 
@@ -75,7 +75,7 @@ login -> create device -> generate X25519 on device -> PUT public key (hex) -> c
 
 | Path | What it does |
 |---|---|
-| `data/KeyPairFactory.kt` | Key generation behind an interface. Uses the tunnel library`s own X25519 (`com.wireguard.crypto.KeyPair`) because `KeyPairGenerator` has no X25519 on Android. |
+| `data/KeyPairFactory.kt` | Key generation behind an interface. Uses the tunnel library's own X25519 (`com.wireguard.crypto.KeyPair`) because `KeyPairGenerator` has no X25519 on Android. |
 | `data/SecretStores.kt` | `SecretStore` seals the private key with a keystore-held AES-256-GCM key and stores only the ciphertext in EncryptedSharedPreferences. `SessionStore` holds the token, device/peer ids and the public key. |
 | `onboarding/Onboarding.kt` | `OnboardingRepository` (the pipeline, idempotent) and `OnboardingController` (UI state). |
 | `api/PeerApi.kt` | The API surface as an interface, so the pipeline is testable with fakes on the JVM. |
@@ -91,3 +91,31 @@ Design decisions that are easy to get wrong:
 Tests (`app/src/test`, JVM, no emulator): pipeline order, private key never uploaded, device/keypair reuse across runs, renewal surfacing, sign-out clearing secrets, and base64/hex checked against `java.util.Base64` as an independent oracle.
 
 Still open for M3: `WireguardTunnelEngine` (wiring `GoBackend.setState`), the consent dialog, the foreground service notification, and `addDisallowedApplication`.
+## Phase 3 — tunnel and lifecycle (implemented)
+
+| Path | What it does |
+|---|---|
+| `tunnel/WireguardConfigBuilder.kt` | Renders the wg-quick text the library parses. **Pure logic, unit-tested** — exact output, IPv6 bracket handling, keepalive-0 omission, empty-AllowedIPs rejection. |
+| `tunnel/WireguardTunnelEngine.kt` | `GoBackend.setState(service, UP, Config.parse(ini))`. Thin on purpose: the only untestable Android call in the connect path is here. |
+| `tunnel/TunnelRuntime.kt` | `VpnConsent.prepare` (dialog intent or null), `TunnelNotification` (channel + ongoing notification), `TunnelController` (connect/disconnect for the UI). |
+| `tunnel/WgTunnelService.kt` | `GoBackend.VpnService` subclass, foreground with notification, `START_STICKY`. |
+| `MainActivity.kt` | Consent flow via `rememberLauncherForActivityResult`, then start service, then connect. |
+
+The client never decides routes: `AllowedIPs`, MTU and DNS come from the server
+(`VPN_ALLOWED_IPS`, `VPN_MTU`, `VPN_DNS`), so an operator can ship IPv4-only or change
+MTU without an app release.
+
+### Known gaps in this phase, stated rather than hidden
+
+* **`addDisallowedApplication(ownPackage)` is not reachable.** The library builds the
+  tunnel interface internally, so the app cannot add itself to the disallowed list.
+  Consequence: with `0.0.0.0/0` routes, the app's *own* API traffic also goes through
+  the tunnel. Onboarding runs before connect, so the usual deadlock (needing the API
+  to finish connecting) does not occur, but a token refresh while connected will egress
+  through the tunnel. Proper fix (M4): bind the OkHttp socket to the underlying
+  network via `ConnectivityManager`, or move onboarding traffic to a `protected` socket.
+* **No statistics yet.** `TunnelState.Up` carries rx/tx fields that stay 0: the
+  library's statistics API needs confirming against the AAR before wiring it.
+* **Always-on VPN and per-app split tunnelling** are system settings the user grants;
+  nothing to implement beyond being a correct `VpnService`, which the manifest is.
+* **Roaming** relies on the library (`setUnderlyingNetworks`); unverified.
