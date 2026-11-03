@@ -14,6 +14,13 @@ import org.json.JSONObject
 interface PeerApi {
     fun login(email: String, password: String): VpnApi.Session
     fun rotateToken(): VpnApi.Session
+
+    /**
+     * Revokes the presented token server-side. Signing out locally is not enough: the
+     * token stays valid until its TTL expires, so a device that signs out after a
+     * suspected compromise leaves a usable credential behind.
+     */
+    fun logout()
     fun me(): JSONObject
     fun createDevice(name: String, platform: String = "android"): String
     fun uploadDeviceKey(deviceId: String, publicKeyHex: String)

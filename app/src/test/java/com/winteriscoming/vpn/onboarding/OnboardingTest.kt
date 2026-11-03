@@ -13,6 +13,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -35,8 +36,17 @@ private class FakeApi : PeerApi {
     /** Thread name for each call, so a test can prove none ran on the caller's. */
     val callThreads = mutableListOf<String>()
 
+    var logouts = 0
+    var failLogoutWith: Exception? = null
+
     private fun noteThread() {
         callThreads.add(Thread.currentThread().name)
+    }
+
+    override fun logout() {
+        noteThread()
+        failLogoutWith?.let { throw it }
+        logouts++
     }
 
     override fun login(email: String, password: String): VpnApi.Session {
@@ -140,6 +150,34 @@ class OnboardingTest {
         assertEquals(listOf("ab".repeat(32)), api.keysUploaded)
         assertEquals("pe_test", session.peerId)
         assertNotNull("the private key must be sealed", secrets.stored)
+    }
+
+    @Test
+    fun signingOutRevokesTheTokenAndForgetsTheKey() = runTest {
+        val api = FakeApi()
+        val secrets = FakeSecrets()
+        val session = FakeSession()
+        val repository = OnboardingRepository(api, secrets, session, FakeKeys())
+        repository.signInAndProvision("a@b.c", "pw", "android")
+
+        repository.signOut()
+
+        assertEquals("sign-out must revoke the token server-side", 1, api.logouts)
+        assertNull("the sealed private key must be gone", secrets.stored)
+        assertNull("the cached session must be gone", session.deviceId)
+    }
+
+    @Test
+    fun anOfflineSignOutStillWipesTheDevice() = runTest {
+        val api = FakeApi().apply { failLogoutWith = IllegalStateException("offline") }
+        val secrets = FakeSecrets()
+        val repository = OnboardingRepository(api, secrets, FakeSession(), FakeKeys())
+        repository.signInAndProvision("a@b.c", "pw", "android")
+
+        repository.signOut()
+
+        // The user asked the device to forget the key; a failed revoke must not veto that.
+        assertNull(secrets.stored)
     }
 
     @Test

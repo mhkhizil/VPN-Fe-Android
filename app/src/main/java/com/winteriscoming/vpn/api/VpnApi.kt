@@ -70,6 +70,12 @@ class VpnApi(
     /** `/me` reports plan and days_left so the UI can show "expires in N days". */
     override fun me(): JSONObject = get("/api/v1/me", requireToken())
 
+    override fun logout() {
+        val token = accessToken ?: return
+        post("/api/v1/auth/logout", JSONObject(), token, rotateOn401 = false)
+        setToken(null)
+    }
+
     override fun createDevice(name: String, platform: String): String {
         val body = JSONObject().put("name", name).put("platform", platform)
         return post("/api/v1/devices", body, requireToken()).getString("id")

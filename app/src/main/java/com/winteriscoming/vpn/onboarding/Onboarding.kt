@@ -111,6 +111,11 @@ class OnboardingRepository(
     fun storedPrivateKey(): String? = secrets.loadPrivateKey()
 
     fun signOut() {
+        // Best effort, and in this order: revoke server-side first, so the token dies now
+        // instead of at the end of its TTL. A failed revoke (offline, already expired)
+        // must not stop the local wipe - the device forgetting the key is the part the
+        // user asked for.
+        runCatching { api.logout() }
         secrets.clear()
         session.clear()
     }
