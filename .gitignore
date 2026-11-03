@@ -1,0 +1,16 @@
+# Gradle / Android build output - never commit
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Captured evidence, not source
+out/
