@@ -119,3 +119,25 @@ MTU without an app release.
 * **Always-on VPN and per-app split tunnelling** are system settings the user grants;
   nothing to implement beyond being a correct `VpnService`, which the manifest is.
 * **Roaming** relies on the library (`setUnderlyingNetworks`); unverified.
+## Phase 4 - design (implemented)
+
+Minimalist, baby blue on white, dark mode included. Three tiers only: identity,
+state, one action.
+
+| File | Role |
+|---|---|
+| `ui/theme/Color.kt` | Palette with contrast ratios in the comments. Pale baby blue is a surface colour only (~1.4:1 on white would fail as text); `BabyBlueInk` (#2E7DA6) is the accent at ~4.6:1, AA for body text and for white-on-primary button labels. |
+| `ui/theme/Theme.kt` | Light/dark Material3 schemes, two corner radii, no dynamic colour, plus a `StatusColors` composition local for connected / idle / attention / danger. |
+| `ui/theme/Type.kt` | One type scale, two weights, system font (no bundled typeface). |
+| `ui/VpnScreen.kt` | Stateless screen - every input a parameter, every action a callback - so it can be previewed and UI-tested without a server, keystore or VPN service. |
+
+Design decisions worth keeping:
+
+* **Colour is never the only signal.** The status dot is always paired with a word
+  (Connected / Not connected / Connecting), which matters for red-green colour
+  blindness.
+* **One filled button.** It is the only element with a filled container; when the
+  tunnel is up it steps back to a quiet surface tint because the interesting state is
+  already shown above it.
+* **Nothing animated, nothing decorated.** A VPN app has one question and one action;
+  the design brief is minimalism, so the work is in what was left out.
