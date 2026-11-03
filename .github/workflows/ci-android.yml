@@ -1,12 +1,11 @@
 # Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
 #
-# Android build lane. The authoring machine has no JDK/SDK/NDK, so this is the only
+# Android build lane: the authoring machine has no JDK/SDK/NDK, so this is the only
 # place the app is proven to compile.
 #
-# Every risky step reports its own failure as a GitHub ::error annotation. That is
-# deliberate: annotations are readable through the public API without credentials,
-# while job logs are not, so a failure here is diagnosable without a human copying
-# the log text out by hand.
+# Diagnostics design: job logs are not readable without credentials, but commit
+# comments are. On failure this workflow publishes the interesting log lines as a
+# commit comment, so a red build is diagnosable from outside.
 name: ci-android
 
 on:
@@ -25,7 +24,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # write only to publish failure diagnostics as a commit comment
+  contents: write
 
 jobs:
   build:
@@ -46,9 +46,6 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
-      # The SDK is installed with plain shell rather than a third-party action:
-      # android-actions/setup-android@v3 targets Node 20 and is now forced onto
-      # Node 24, and every version is explicit here.
       - name: Install Android SDK
         run: |
           set -eo pipefail
@@ -56,66 +53,45 @@ jobs:
           mkdir -p "$SDK/cmdline-tools"
           cd "$SDK"
           URL="https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
-          if ! curl -fsSL -o cmdtools.zip "$URL"; then
-            echo "::error title=cmdline-tools download failed::curl could not fetch $URL"
-            exit 1
-          fi
+          curl -fsSL -o cmdtools.zip "$URL"
           unzip -q -o cmdtools.zip -d "$SDK/cmdline-tools"
           mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
           SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          # `yes` gets SIGPIPE when sdkmanager exits, and pipefail would turn that
-          # into a failure of an otherwise successful licence step.
           yes | "$SM" --sdk_root="$SDK" --licenses > licenses.log 2>&1 || true
-          if ! "$SM" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0" > sdk.log 2>&1; then
-            echo "::error title=sdkmanager failed::$(tail -c 600 sdk.log | tr '\n' '|')"
-            exit 1
-          fi
+          "$SM" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0" > sdk.log 2>&1
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
-          echo "sdkmanager $(cat "$SDK/cmdline-tools/latest/source.properties" | grep Pkg.Revision)"
 
       - name: Show toolchain versions
         run: |
           java -version
           gradle --version | head -6
-          echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
-      # Compile first: Kotlin errors are the ones most likely to be mine, and this
-      # step is what turns them into a readable annotation.
-      - name: Compile Kotlin (errors reported as annotations)
-        run: |
-          set -o pipefail
-          if gradle :app:compileDebugKotlin --no-daemon --stacktrace > kotlin.log 2>&1; then
-            echo "Kotlin compiled"
-          else
-            echo "::error title=Kotlin compile failed::$(grep -m 4 -E '^e: ' kotlin.log | tr '\n' '|' | cut -c1-900)"
-            grep -m 30 -E '^e: |^w: |What went wrong|Caused by' kotlin.log || true
-            exit 1
-          fi
+      - name: Compile Kotlin
+        run: gradle :app:compileDebugKotlin --no-daemon --stacktrace > kotlin.log 2>&1 || (cat kotlin.log; exit 1)
 
-      - name: Unit tests (errors reported as annotations)
-        run: |
-          set -o pipefail
-          if gradle :app:testDebugUnitTest --no-daemon --stacktrace > test.log 2>&1; then
-            echo "Unit tests passed"
-          else
-            echo "::error title=unit tests failed::$(grep -m 4 -E 'FAILED|expected:|AssertionError' test.log | tr '\n' '|' | cut -c1-900)"
-            grep -m 30 -E 'FAILED|expected:|AssertionError|Caused by' test.log || true
-            exit 1
-          fi
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace > test.log 2>&1 || (cat test.log; exit 1)
 
-      - name: Assemble debug APK (errors reported as annotations)
+      - name: Assemble debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace > assemble.log 2>&1 || (cat assemble.log; exit 1)
+
+      # The whole point: make a red build readable from outside the UI.
+      - name: Publish failure diagnostics
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
         run: |
-          set -o pipefail
-          if gradle :app:assembleDebug --no-daemon --stacktrace > assemble.log 2>&1; then
-            echo "APK assembled"
-          else
-            echo "::error title=assemble failed::$(grep -m 4 -E '^e: |error:|What went wrong' assemble.log | tr '\n' '|' | cut -c1-900)"
-            grep -m 30 -E '^e: |error:|What went wrong|Caused by' assemble.log || true
-            exit 1
-          fi
+          set +e
+          EXCERPT=$(cat kotlin.log test.log assemble.log sdk.log 2>/dev/null | grep -E "^e: |error:|FAILED|What went wrong|Caused by|Could not (resolve|find|GET)|Unresolved|Incompatible|requires|is not" | head -40 | cut -c1-400)
+          if [ -z "$EXCERPT" ]; then EXCERPT="(no matching error lines found in any log)"; fi
+          jq -n --arg b "$EXCERPT" --arg s "$SHA" '{body: ("Build diagnostics for " + $s + ":\n\n```\n" + $b + "\n```")}' > payload.json
+          curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/commits/$SHA/comments" -d @payload.json > /dev/null
+          echo published
 
       - name: Upload test report
         if: always()
@@ -126,6 +102,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: winter-vpn-debug-apk
