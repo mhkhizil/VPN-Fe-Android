@@ -1,0 +1,89 @@
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:checkDebugAarMetadata
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:mergeDebugResources
+> Task :app:processDebugAndroidTestManifest
+> Task :app:generateDebugAndroidTestBuildConfig
+> Task :app:generateDebugAndroidTestResValues UP-TO-DATE
+> Task :app:checkDebugAndroidTestAarMetadata
+> Task :app:mapDebugAndroidTestSourceSetPaths
+> Task :app:generateDebugAndroidTestResources
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:l8DexDesugarLibDebug UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:mergeDebugStartupProfile UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:processDebugManifestForPackage
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugAndroidTestResources
+> Task :app:processDebugResources
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:processDebugAndroidTestResources
+
+> Task :app:compileDebugKotlin
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:9:8 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:10:8 'class MasterKey : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:54:44 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:57:9 'class MasterKey : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:57:19 'constructor(p0: @NonNull() Context!): MasterKey.Builder' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:57:49 'class MasterKey : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:57:59 'enum class KeyScheme : Enum<MasterKey.KeyScheme!>' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:58:9 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:58:36 'enum class PrefKeyEncryptionScheme : Enum<EncryptedSharedPreferences.PrefKeyEncryptionScheme!>' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:59:9 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:59:36 'enum class PrefValueEncryptionScheme : Enum<EncryptedSharedPreferences.PrefValueEncryptionScheme!>' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:125:44 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:128:9 'class MasterKey : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:128:19 'constructor(p0: @NonNull() Context!): MasterKey.Builder' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:128:49 'class MasterKey : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:128:59 'enum class KeyScheme : Enum<MasterKey.KeyScheme!>' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:129:9 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:129:36 'enum class PrefKeyEncryptionScheme : Enum<EncryptedSharedPreferences.PrefKeyEncryptionScheme!>' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:130:9 'class EncryptedSharedPreferences : Any, SharedPreferences' is deprecated. Deprecated in Java.
+w: file:///C:/Users/mhkhi/My%20current%20projects/vpn/VPN-Fe-Android/app/src/main/java/com/winteriscoming/vpn/data/SecretStores.kt:130:36 'enum class PrefValueEncryptionScheme : Enum<EncryptedSharedPreferences.PrefValueEncryptionScheme!>' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :app:mergeProjectDexDebug
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :app:compileDebugAndroidTestKotlin
+> Task :app:mergeDebugJavaResource
+> Task :app:testDebugUnitTest
+> Task :app:mergeExtDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL in 26s
+54 actionable tasks: 27 executed, 27 up-to-date

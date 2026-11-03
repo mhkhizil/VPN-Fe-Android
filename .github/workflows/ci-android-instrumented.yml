@@ -1,0 +1,83 @@
+# Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
+#
+# Instrumented (on-device) tests, deliberately as a manual workflow rather than part
+# of every push: they need an emulator, which takes minutes and can be flaky. The
+# development machine cannot run one at all (no hypervisor: "x86_64 emulation
+# currently requires hardware acceleration"), so this is the only place the UI tests
+# execute. GitHub's ubuntu runners expose KVM, so it works there.
+#
+# Run from the Actions tab, or:
+#   gh workflow run ci-android-instrumented.yml
+name: ci-android-instrumented
+
+on:
+  workflow_dispatch:
+  # Uncomment once the suite is known-stable; it is opt-in until then so it can never
+  # block a push on emulator flakiness.
+  # pull_request:
+  #   paths: ["app/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  instrumented:
+    name: connectedDebugAndroidTest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install Android SDK
+        run: |
+          set -eo pipefail
+          SDK="$HOME/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          cd "$SDK"
+          curl -fsSL -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+          unzip -q -o cmdtools.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SM" --sdk_root="$SDK" --licenses > licenses.log 2>&1 || true
+          "$SM" --sdk_root="$SDK" "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
+            "system-images;android-34;google_apis;x86_64" > sdk.log 2>&1
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Run instrumented tests on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          # The tunnel itself needs a live server, so these tests cover the screen and
+          # the state machine - not the handshake.
+          script: gradle :app:connectedDebugAndroidTest --stacktrace
+
+      - name: Upload instrumented test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-instrumented-report
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore

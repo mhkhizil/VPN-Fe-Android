@@ -1,4 +1,4 @@
-﻿// Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -83,7 +83,7 @@ dependencies {
     // NotificationCompat for the mandatory foreground-service notification.
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Explicit, not transitive: TunnelEngine and the onboarding repository use
     // coroutines/Flow directly, so relying on lifecycle-runtime-ktx to drag them in
@@ -93,4 +93,13 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.json:json:20240303")  // android org.json is stubbed on the JVM
+
+    // Instrumented UI tests. They cannot run on the development machine (no device,
+    // and the emulator needs a hypervisor this box does not have), but they compile
+    // here and run on any real device or CI emulator with connectedAndroidTest.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.10.01"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
