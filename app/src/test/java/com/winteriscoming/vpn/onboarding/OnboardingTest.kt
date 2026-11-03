@@ -97,6 +97,16 @@ private fun testConfig() = PeerConfig(
     deviceId = "dev_test",
     status = "active",
 
+    addresses = listOf("10.66.0.2/32"),
+    dnsServers = listOf("10.66.0.1"),
+    mtu = 1420,
+    persistentKeepaliveSeconds = 25,
+    serverEndpoint = "vpn.example.com:51820",
+    serverPublicKey = "A4uR6Gx3e1rXgaEcbAo1rNurUIlxfbSgP5UhRU7NpCw=",
+    allowedIps = listOf("0.0.0.0/0", "::/0"),
+)
+
+
 class OnboardingTest {
 
     @Test
@@ -197,11 +207,3 @@ class OnboardingTest {
     }
 }
 
-    addresses = listOf("10.66.0.2/32"),
-    dnsServers = listOf("10.66.0.1"),
-    mtu = 1420,
-    persistentKeepaliveSeconds = 25,
-    serverEndpoint = "vpn.example.com:51820",
-    serverPublicKey = "A4uR6Gx3e1rXgaEcbAo1rNurUIlxfbSgP5UhRU7NpCw=",
-    allowedIps = listOf("0.0.0.0/0", "::/0"),
-)
