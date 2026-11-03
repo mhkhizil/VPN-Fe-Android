@@ -10,11 +10,13 @@ on:
     paths:
       - "app/**"
       - "*.gradle.kts"
+      - "gradle.properties"
       - ".github/workflows/ci-android.yml"
   pull_request:
     paths:
       - "app/**"
       - "*.gradle.kts"
+      - "gradle.properties"
       - ".github/workflows/ci-android.yml"
   workflow_dispatch:
 
@@ -30,25 +32,48 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      # The repository has no gradle wrapper (its jar is a binary we do not commit),
-      # so the action installs a pinned distribution and puts `gradle` on PATH.
+      # No gradle wrapper is committed (its jar is a binary), so install a pinned
+      # distribution and put `gradle` on PATH.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install platform and build tools
+      # The Android SDK is installed with plain shell rather than a third-party
+      # action on purpose: android-actions/setup-android@v3 targets Node 20 and is now
+      # forced onto Node 24, which is what failed this job. Fewer moving parts, and
+      # the version of every component is visible right here.
+      - name: Install Android SDK
         run: |
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-          yes | sdkmanager --licenses > /dev/null
+          set -euo pipefail
+          SDK="$HOME/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          cd "$SDK"
+          curl -fsSL -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q cmdtools.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Show toolchain versions
+        run: |
+          java -version
+          gradle --version | head -6
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
+
+      # Compile Kotlin first and separately: it fails fastest and its errors are the
+      # ones most likely to be mine, not the toolchain's.
+      - name: Compile (Kotlin errors surface here first)
+        run: gradle :app:compileDebugKotlin --no-daemon --stacktrace
 
       - name: Unit tests (contract parsing, no emulator needed)
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
