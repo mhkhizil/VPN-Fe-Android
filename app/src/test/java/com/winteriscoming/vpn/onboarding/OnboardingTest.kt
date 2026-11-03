@@ -32,26 +32,38 @@ private class FakeApi : PeerApi {
     var plan = "6m"
     var daysLeft = 180
 
-    override fun login(email: String, password: String): VpnApi.Session =
-        VpnApi.Session("usr_test", "user", "tok_1")
+    /** Thread name for each call, so a test can prove none ran on the caller's. */
+    val callThreads = mutableListOf<String>()
+
+    private fun noteThread() {
+        callThreads.add(Thread.currentThread().name)
+    }
+
+    override fun login(email: String, password: String): VpnApi.Session {
+        noteThread()
+        return VpnApi.Session("usr_test", "user", "tok_1")
+    }
 
     override fun rotateToken(): VpnApi.Session = VpnApi.Session("usr_test", "user", "tok_rot")
 
     override fun me(): JSONObject = JSONObject(
         """{"user_id":"usr_test","role":"user",
             "access":{"plan":"$plan","status":"active","days_left":$daysLeft}}""",
-    )
+    ).also { noteThread() }
 
     override fun createDevice(name: String, platform: String): String {
+        noteThread()
         devicesCreated++
         return "dev_test"
     }
 
     override fun uploadDeviceKey(deviceId: String, publicKeyHex: String) {
+        noteThread()
         keysUploaded.add(publicKeyHex)
     }
 
     override fun createPeer(deviceId: String): PeerConfig {
+        noteThread()
         failPeerWith?.let { throw it }
         peersCreated++
         return testConfig()
@@ -128,6 +140,21 @@ class OnboardingTest {
         assertEquals(listOf("ab".repeat(32)), api.keysUploaded)
         assertEquals("pe_test", session.peerId)
         assertNotNull("the private key must be sealed", secrets.stored)
+    }
+
+    @Test
+    fun runsTheNetworkCallsOffTheCallersThread() = runTest {
+        val callerThread = Thread.currentThread().name
+        val api = FakeApi()
+
+        OnboardingRepository(api, secrets = FakeSecrets(), session = FakeSession(), keys = FakeKeys())
+            .signInAndProvision("a@b.c", "pw", "android")
+
+        assertTrue("the pipeline made no API calls", api.callThreads.isNotEmpty())
+        assertTrue(
+            "API calls ran on the caller's thread ($callerThread): ${api.callThreads}",
+            api.callThreads.none { it == callerThread },
+        )
     }
 
     @Test

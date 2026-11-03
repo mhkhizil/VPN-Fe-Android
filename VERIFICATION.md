@@ -66,6 +66,39 @@ Recorded here because a client claim is only as good as the server it talks to.
 
 ## The one-line summary
 
-The client **builds, passes 27 unit tests, lints clean, and produces a signed APK**;
+The client **builds, passes 28 unit tests, lints clean, and produces a signed APK**;
 nothing that requires a device or a Linux host has been executed, so "it works as a
 VPN" is still a claim about code, not about behaviour.
+
+## 2026-11-03 — what the performance/leak/security pass changed
+
+A read-only audit of every `main` `.kt` file was run against this tree. One finding
+was critical and is fixed here:
+
+**Blocking network I/O on the main thread.** `PeerApi` is deliberately synchronous
+(blocking OkHttp in `VpnApi`, plain fakes in tests), but `OnboardingRepository`
+called it — plus the Keystore reads and writes — without dispatching anywhere. From
+`lifecycleScope.launch` that means three network round trips and a Keystore unwrap on
+the thread drawing the first frame: jank at best, ANR at worst.
+
+- `OnboardingRepository.signInAndProvision` now wraps the whole pipeline in
+  `withContext(Dispatchers.IO)`.
+- `TunnelController.connect` reads the sealed key through `Dispatchers.IO` too.
+- `OnboardingTest.runsTheNetworkCallsOffTheCallersThread` asserts no API call happens
+  on the caller's thread. Mutation-checked: putting `Dispatchers.Unconfined` back
+  makes exactly that test fail, so it is a real guard and not decoration.
+
+```
+tests=28 failures=0        (was 27 before this test)
+lintDebug: BUILD SUCCESSFUL, 11 warnings, 0 errors
+```
+
+Checked and found **clean**, so no change was made: no `android.util.Log` call exists
+anywhere, so the private key cannot reach logcat; every `Response` is closed
+(`execute(...).use { }`); the private key is never held in UI state, only re-read from
+the sealed store at connect time, and the test suite pins that it is never uploaded.
+
+Still **not** verified, and no amount of JVM testing changes it: runtime leaks, jank,
+and private-key lifetime in a real process. Those need a device or an emulator lane —
+see the table above.
+

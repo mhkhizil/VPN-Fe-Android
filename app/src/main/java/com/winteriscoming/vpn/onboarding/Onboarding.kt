@@ -7,8 +7,10 @@ import com.winteriscoming.vpn.api.VpnApi
 import com.winteriscoming.vpn.data.KeyPairFactory
 import com.winteriscoming.vpn.data.SecretStore
 import com.winteriscoming.vpn.data.SessionStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** What the account is entitled to right now, from `GET /api/v1/me`. */
@@ -50,12 +52,22 @@ class OnboardingRepository(
     private val keys: KeyPairFactory,
 ) {
 
+    /**
+     * Runs the whole pipeline off the main thread.
+     *
+     * [PeerApi] is deliberately synchronous (it is implemented by a blocking OkHttp
+     * client and by JVM fakes), so the dispatch has to happen here. Without it every
+     * call - login, device, key upload, peer - plus the Keystore reads and writes
+     * below would run on whichever dispatcher the caller used, which for
+     * `lifecycleScope.launch` is the main thread: three network round trips and a
+     * Keystore unlock on the thread that draws the first frame.
+     */
     suspend fun signInAndProvision(
         email: String,
         password: String,
         deviceName: String,
-    ): OnboardingOutcome {
-        return try {
+    ): OnboardingOutcome = withContext(Dispatchers.IO) {
+        try {
             val login = api.login(email, password)
             session.accessToken = login.accessToken
 

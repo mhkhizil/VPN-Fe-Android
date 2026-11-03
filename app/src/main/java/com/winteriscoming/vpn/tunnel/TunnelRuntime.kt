@@ -13,7 +13,9 @@ import androidx.core.app.NotificationCompat
 import com.winteriscoming.vpn.MainActivity
 import com.winteriscoming.vpn.api.PeerConfig
 import com.winteriscoming.vpn.onboarding.OnboardingRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 
 /**
  * Android-side tunnel plumbing: the consent dialog, the foreground notification and
@@ -78,7 +80,10 @@ class TunnelController(
 
     /** Returns null on success, or a user-facing message on failure. */
     suspend fun connect(config: PeerConfig): String? {
-        val privateKey = repository.storedPrivateKey()
+        // Reading the sealed key unwraps it through the Keystore, which is real crypto
+        // and real disk I/O: it must not run on the thread that is drawing the button
+        // the user just tapped.
+        val privateKey = withContext(Dispatchers.IO) { repository.storedPrivateKey() }
             ?: return "Set up the VPN first: no key is stored on this device."
         engine.connect(config, privateKey)
         return when (val current = engine.state.value) {
