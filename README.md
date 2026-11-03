@@ -6,7 +6,7 @@ Server and client live in separate repositories on purpose: they ship on differe
 cadences, have different toolchains, and the client must be able to pin a server
 contract version independently.
 
-**Status: skeleton. Never compiled.** This repository has been built only by its CI
+**Status: Phase 2 (onboarding) implemented — still never compiled.** This repository has been built only by its CI
 lane — no developer machine with a JDK/Android SDK/NDK has run it yet. Treat the
 first green CI run as the moment the code exists.
 
@@ -64,3 +64,30 @@ The client follows the server's documented API:
 `docs/API.md` and `docs/CLIENT_INTEGRATION.md` in the server repository. A change to
 the `POST /api/v1/peers` payload is a breaking change for this repository —
 `PeerConfigParserTest` is what fails when it happens.
+
+## Phase 2 — onboarding (implemented)
+
+Pipeline, in the order the server requires:
+
+```
+login -> create device -> generate X25519 on device -> PUT public key (hex) -> create peer -> config
+```
+
+| Path | What it does |
+|---|---|
+| `data/KeyPairFactory.kt` | Key generation behind an interface. Uses the tunnel library`s own X25519 (`com.wireguard.crypto.KeyPair`) because `KeyPairGenerator` has no X25519 on Android. |
+| `data/SecretStores.kt` | `SecretStore` seals the private key with a keystore-held AES-256-GCM key and stores only the ciphertext in EncryptedSharedPreferences. `SessionStore` holds the token, device/peer ids and the public key. |
+| `onboarding/Onboarding.kt` | `OnboardingRepository` (the pipeline, idempotent) and `OnboardingController` (UI state). |
+| `api/PeerApi.kt` | The API surface as an interface, so the pipeline is testable with fakes on the JVM. |
+| `api/Base64Hex.kt` | Base64 <-> hex. The server accepts only 64 lowercase hex characters for a public key; WireGuard speaks base64. |
+
+Design decisions that are easy to get wrong:
+
+* **The private key never reaches the API.** It is generated on device, sealed, and only the public half is uploaded (server ADR-0007). A test asserts no upload ever contains it.
+* **Onboarding is idempotent.** Device id, peer id and public key are reused across launches, and the key is re-uploaded every run: cheap, and it repairs a device row whose key was cleared server-side instead of dead-ending the user.
+* **The keystore holds the right to decrypt, not the key.** AndroidKeyStore has no X25519, and `setUserAuthenticationRequired(false)` is deliberate: biometric-per-use would break reconnect-after-reboot and Always-on VPN. Any code running as this app can obtain the key — the normal model for VPN clients, stated rather than assumed.
+* **`403 access_expired` is a renewal state, not an error.** `OnboardingState.renewalRequired` drives a "contact your provider" message rather than a retry button.
+
+Tests (`app/src/test`, JVM, no emulator): pipeline order, private key never uploaded, device/keypair reuse across runs, renewal surfacing, sign-out clearing secrets, and base64/hex checked against `java.util.Base64` as an independent oracle.
+
+Still open for M3: `WireguardTunnelEngine` (wiring `GoBackend.setState`), the consent dialog, the foreground service notification, and `addDisallowedApplication`.
