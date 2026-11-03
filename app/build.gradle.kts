@@ -1,4 +1,4 @@
-// Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
+﻿// Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,13 +7,16 @@ plugins {
 
 android {
     namespace = "com.winteriscoming.vpn"
-    compileSdk = 35
+    // 34 matches what is installed on the development machine (platforms;android-34,
+    // build-tools;34.0.0), so a local build and a CI build target the same thing.
+    // Bump both together, and update the SDK install step in ci-android.yml to match.
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.winteriscoming.vpn"
         // wireguard-android supports API 21+; 24 keeps us clear of pre-N TLS quirks.
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -23,6 +26,11 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // The tunnel library ships native code for four ABIs (~25 MB debug APK);
+            // a phone needs two. Debug keeps all of them so an x86_64 emulator works.
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"

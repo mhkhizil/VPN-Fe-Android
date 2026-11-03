@@ -141,3 +141,32 @@ Design decisions worth keeping:
   already shown above it.
 * **Nothing animated, nothing decorated.** A VPN app has one question and one action;
   the design brief is minimalism, so the work is in what was left out.
+
+## Local build (verified, not just CI)
+
+This project now builds and tests on the development machine, using Android Studio`s
+own SDK plus a cached Gradle:
+
+| Requirement | Value | Why |
+|---|---|---|
+| JDK | **17-21** | Kotlin 2.0.21 crashes on **JDK 25** with `IllegalArgumentException: 25.0.3` - its bundled IntelliJ `JavaVersion` parser does not know that version. Studio`s current JBR is 25, so point `JAVA_HOME` at a JDK 21 (e.g. `~/.jdks/jbr-21.0.11`). |
+| Gradle | 8.7 | AGP 8.5.2 pairs with it; AGP 8.7+ requires Gradle 8.9 and would need a download. |
+| compileSdk / targetSdk | 34 | Matches `platforms;android-34` and `build-tools;34.0.0` installed locally, so local and CI build the same thing. |
+
+```bash
+# once per machine
+echo "sdk.dir=C:/Users/<you>/AppData/Local/Android/Sdk" > local.properties   # gitignored
+
+JAVA_HOME=~/.jdks/jbr-21.0.11 gradle :app:testDebugUnitTest     # 27 tests
+JAVA_HOME=~/.jdks/jbr-21.0.11 gradle :app:assembleDebug         # debug APK
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Verified locally: `compileDebugKotlin` and `assembleDebug` succeed, **27 unit tests
+pass** (Base64Hex 7, PeerConfigParser 5, Onboarding 6, WireguardConfigBuilder 9), and
+the debug APK is ~25 MB (four ABIs; the release build is filtered to arm64-v8a and
+armeabi-v7a).
+
+What is still *not* verified by any of this: anything that needs a device - the tunnel
+itself, the consent dialog, the foreground notification, and the AAR and
+`KeyPair()` calls that only execute at runtime.
