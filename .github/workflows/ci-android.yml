@@ -1,8 +1,12 @@
 # Copyright 2026 The vpn authors. SPDX-License-Identifier: Apache-2.0
 #
-# Android build lane. This exists because the development machine has no JDK, no
-# Android SDK and no NDK: the only place an APK is actually proven to compile and
-# the JVM tests actually run is here.
+# Android build lane. The authoring machine has no JDK/SDK/NDK, so this is the only
+# place the app is proven to compile.
+#
+# Every risky step reports its own failure as a GitHub ::error annotation. That is
+# deliberate: annotations are readable through the public API without credentials,
+# while job logs are not, so a failure here is diagnosable without a human copying
+# the log text out by hand.
 name: ci-android
 
 on:
@@ -37,31 +41,39 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # No gradle wrapper is committed (its jar is a binary), so install a pinned
-      # distribution and put `gradle` on PATH.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
 
-      # The Android SDK is installed with plain shell rather than a third-party
-      # action on purpose: android-actions/setup-android@v3 targets Node 20 and is now
-      # forced onto Node 24, which is what failed this job. Fewer moving parts, and
-      # the version of every component is visible right here.
+      # The SDK is installed with plain shell rather than a third-party action:
+      # android-actions/setup-android@v3 targets Node 20 and is now forced onto
+      # Node 24, and every version is explicit here.
       - name: Install Android SDK
         run: |
-          set -euo pipefail
+          set -eo pipefail
           SDK="$HOME/android-sdk"
           mkdir -p "$SDK/cmdline-tools"
           cd "$SDK"
-          curl -fsSL -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q cmdtools.zip -d "$SDK/cmdline-tools"
+          URL="https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
+          if ! curl -fsSL -o cmdtools.zip "$URL"; then
+            echo "::error title=cmdline-tools download failed::curl could not fetch $URL"
+            exit 1
+          fi
+          unzip -q -o cmdtools.zip -d "$SDK/cmdline-tools"
           mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
-          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          # `yes` gets SIGPIPE when sdkmanager exits, and pipefail would turn that
+          # into a failure of an otherwise successful licence step.
+          yes | "$SM" --sdk_root="$SDK" --licenses > licenses.log 2>&1 || true
+          if ! "$SM" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0" > sdk.log 2>&1; then
+            echo "::error title=sdkmanager failed::$(tail -c 600 sdk.log | tr '\n' '|')"
+            exit 1
+          fi
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "sdkmanager $(cat "$SDK/cmdline-tools/latest/source.properties" | grep Pkg.Revision)"
 
       - name: Show toolchain versions
         run: |
@@ -70,16 +82,40 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
-      # Compile Kotlin first and separately: it fails fastest and its errors are the
-      # ones most likely to be mine, not the toolchain's.
-      - name: Compile (Kotlin errors surface here first)
-        run: gradle :app:compileDebugKotlin --no-daemon --stacktrace
+      # Compile first: Kotlin errors are the ones most likely to be mine, and this
+      # step is what turns them into a readable annotation.
+      - name: Compile Kotlin (errors reported as annotations)
+        run: |
+          set -o pipefail
+          if gradle :app:compileDebugKotlin --no-daemon --stacktrace > kotlin.log 2>&1; then
+            echo "Kotlin compiled"
+          else
+            echo "::error title=Kotlin compile failed::$(grep -m 4 -E '^e: ' kotlin.log | tr '\n' '|' | cut -c1-900)"
+            grep -m 30 -E '^e: |^w: |What went wrong|Caused by' kotlin.log || true
+            exit 1
+          fi
 
-      - name: Unit tests (contract parsing, no emulator needed)
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Unit tests (errors reported as annotations)
+        run: |
+          set -o pipefail
+          if gradle :app:testDebugUnitTest --no-daemon --stacktrace > test.log 2>&1; then
+            echo "Unit tests passed"
+          else
+            echo "::error title=unit tests failed::$(grep -m 4 -E 'FAILED|expected:|AssertionError' test.log | tr '\n' '|' | cut -c1-900)"
+            grep -m 30 -E 'FAILED|expected:|AssertionError|Caused by' test.log || true
+            exit 1
+          fi
 
-      - name: Assemble debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Assemble debug APK (errors reported as annotations)
+        run: |
+          set -o pipefail
+          if gradle :app:assembleDebug --no-daemon --stacktrace > assemble.log 2>&1; then
+            echo "APK assembled"
+          else
+            echo "::error title=assemble failed::$(grep -m 4 -E '^e: |error:|What went wrong' assemble.log | tr '\n' '|' | cut -c1-900)"
+            grep -m 30 -E '^e: |error:|What went wrong|Caused by' assemble.log || true
+            exit 1
+          fi
 
       - name: Upload test report
         if: always()
