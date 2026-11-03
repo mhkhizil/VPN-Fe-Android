@@ -38,6 +38,7 @@ class VpnScreenTest {
         tunnel: TunnelState = TunnelState.Down,
         onSignIn: () -> Unit = {},
         onToggleTunnel: () -> Unit = {},
+        onSignOut: () -> Unit = {},
     ) {
         compose.setContent {
             WinterVpnTheme {
@@ -56,6 +57,7 @@ class VpnScreenTest {
                     onPasswordChange = {},
                     onSignIn = onSignIn,
                     onToggleTunnel = onToggleTunnel,
+                    onSignOut = onSignOut,
                 )
             }
         }
@@ -117,5 +119,19 @@ class VpnScreenTest {
     fun thePrimaryActionIsEnabledWhenIdle() {
         setScreen(signedIn = false, busy = false)
         compose.onNodeWithText("Sign in and set up").assertIsEnabled()
+    }
+
+    @Test
+    fun signOutIsOfferedOnlyWhenSignedIn() {
+        setScreen(signedIn = false)
+        compose.onNodeWithText("Sign out").assertDoesNotExist()
+    }
+
+    @Test
+    fun tappingSignOutCallsTheCallback() {
+        var signedOut = false
+        setScreen(signedIn = true, onSignOut = { signedOut = true })
+        compose.onNodeWithText("Sign out").performClick()
+        assertTrue(signedOut)
     }
 }

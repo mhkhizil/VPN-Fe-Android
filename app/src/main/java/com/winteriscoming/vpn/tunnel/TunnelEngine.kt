@@ -2,16 +2,17 @@
 package com.winteriscoming.vpn.tunnel
 
 import com.winteriscoming.vpn.api.PeerConfig
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The seam between the app and whatever actually moves packets.
  *
- * There are two implementations on purpose: [WgTunnelEngine] wraps the official
- * WireGuard library (ADR-0012) and [FakeTunnelEngine] lets the whole onboarding and
- * UI flow be tested on the JVM with no VPN service, no emulator and no root. If we
- * ever replace the official library with our own NDK build of `wire/`, it happens
+ * [WireguardTunnelEngine] wraps the official WireGuard library (ADR-0012). Tests supply
+ * their own implementation of this interface rather than the app shipping one: a fake in
+ * the main source set would ship an object whose whole purpose is to remember the private
+ * key it was handed, which is the one thing that must not exist in a release binary.
+ *
+ * If we ever replace the official library with our own NDK build of `wire/`, it happens
  * behind this interface and nothing above it changes.
  */
 interface TunnelEngine {
@@ -34,26 +35,4 @@ sealed interface TunnelState {
 
     /** [renewalRequired] is true for `403 access_expired`: the UI shows "renew", not "retry". */
     data class Failed(val message: String, val renewalRequired: Boolean = false) : TunnelState
-}
-
-/** No-op engine for tests and for the "logged in but not connected" UI state. */
-class FakeTunnelEngine : TunnelEngine {
-    private val _state = MutableStateFlow<TunnelState>(TunnelState.Down)
-    override val state: StateFlow<TunnelState> = _state
-
-    var lastConfig: PeerConfig? = null
-        private set
-    var lastPrivateKey: String? = null
-        private set
-
-    override suspend fun connect(config: PeerConfig, privateKeyBase64: String) {
-        lastConfig = config
-        lastPrivateKey = privateKeyBase64
-        _state.value = TunnelState.Connecting
-        _state.value = TunnelState.Up(sinceEpochSeconds = System.currentTimeMillis() / 1000)
-    }
-
-    override suspend fun disconnect() {
-        _state.value = TunnelState.Down
-    }
 }

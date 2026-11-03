@@ -165,4 +165,16 @@ class OnboardingController(private val repository: OnboardingRepository) {
             )
         }
     }
+
+    /**
+     * Forgets the device: the sealed private key, the device/peer ids and the token.
+     *
+     * Off the main thread because deleting the Keystore entry is binder IPC. After this
+     * the next sign-in re-provisions from scratch, which is exactly what the idempotent
+     * pipeline is built for.
+     */
+    suspend fun signOut() {
+        withContext(Dispatchers.IO) { repository.signOut() }
+        _state.value = OnboardingState(message = "Signed out. Sign in again to reconnect.")
+    }
 }

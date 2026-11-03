@@ -23,6 +23,7 @@ import com.winteriscoming.vpn.data.PrefsSessionStore
 import com.winteriscoming.vpn.data.WgKeyPairFactory
 import com.winteriscoming.vpn.onboarding.OnboardingController
 import com.winteriscoming.vpn.onboarding.OnboardingRepository
+import com.winteriscoming.vpn.tunnel.ProtectingSocketFactory
 import com.winteriscoming.vpn.tunnel.TunnelController
 import com.winteriscoming.vpn.tunnel.TunnelState
 import com.winteriscoming.vpn.tunnel.VpnConsent
@@ -64,10 +65,22 @@ class MainActivity : ComponentActivity() {
  */
 internal class VpnGraph private constructor(context: Context) {
 
+    private val session = PrefsSessionStore(context)
+
     private val repository = OnboardingRepository(
-        api = VpnApi(BuildConfig.API_BASE_URL),
+        api = VpnApi(
+            baseUrl = BuildConfig.API_BASE_URL,
+            // The tunnel carries 0.0.0.0/0, so the socket that talks to the control plane
+            // has to be exempted explicitly - otherwise sign-in and renewal are routed
+            // into the tunnel they are trying to establish.
+            http = VpnApi.defaultClient(ProtectingSocketFactory()),
+            // The token outlives the process: hydrate from the store on first use, and
+            // write every rotation back so the next launch is not "not logged in".
+            loadToken = { session.accessToken },
+            saveToken = { session.accessToken = it },
+        ),
         secrets = KeystoreSecretStore(context),
-        session = PrefsSessionStore(context),
+        session = session,
         keys = WgKeyPairFactory(),
     )
 
@@ -117,15 +130,31 @@ private fun VpnRoot(onboarding: OnboardingController, tunnel: TunnelController) 
     }
 
     val config = state.config
+    // Derived values are remembered against their inputs: without this, every keystroke
+    // in the email field rebuilt these three strings and the two lambdas below, so the
+    // whole screen (header, status card, button) recomposed on each character typed.
+    val planLabel = remember(state.account) {
+        state.account?.let { account -> account.plan + " plan, " + account.daysLeft + " days left" }
+    }
+    val endpointLabel = remember(config) {
+        config?.let { "Endpoint " + it.serverEndpoint + "   MTU " + it.mtu }
+    }
+    val addressesLabel = remember(config) { config?.addresses?.joinToString("   ") }
+    val onSignOut: () -> Unit = remember(onboarding) {
+        {
+            scope.launch { onboarding.signOut() }
+            // Explicit Unit: `launch` returns a Job, and a () -> Job is not a () -> Unit.
+            Unit
+        }
+    }
+
     VpnScreen(
         signedIn = state.account != null,
         busy = state.busy,
         message = state.message,
-        planLabel = state.account?.let { account ->
-            account.plan + " plan, " + account.daysLeft + " days left"
-        },
-        endpointLabel = config?.let { "Endpoint " + it.serverEndpoint + "   MTU " + it.mtu },
-        addressesLabel = config?.let { it.addresses.joinToString("   ") },
+        planLabel = planLabel,
+        endpointLabel = endpointLabel,
+        addressesLabel = addressesLabel,
         renewalRequired = state.renewalRequired,
         tunnel = tunnelState,
         email = email,
@@ -146,5 +175,6 @@ private fun VpnRoot(onboarding: OnboardingController, tunnel: TunnelController) 
                 }
             }
         },
+        onSignOut = onSignOut,
     )
 }

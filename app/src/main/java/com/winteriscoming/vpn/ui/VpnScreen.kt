@@ -23,7 +23,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +62,8 @@ fun VpnScreen(
     onPasswordChange: (String) -> Unit,
     onSignIn: () -> Unit,
     onToggleTunnel: () -> Unit,
+    /** Signing out forgets the device: sealed key, ids and token. */
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -69,7 +73,7 @@ fun VpnScreen(
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Header(planLabel)
+            Header(planLabel, signedIn = signedIn, onSignOut = onSignOut)
             StatusCard(tunnel = tunnel, endpointLabel = endpointLabel)
 
             if (!signedIn) {
@@ -115,19 +119,36 @@ fun VpnScreen(
 }
 
 @Composable
-private fun Header(planLabel: String?) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = "Winter VPN",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        if (planLabel != null) {
+private fun Header(planLabel: String?, signedIn: Boolean, onSignOut: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = planLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "Winter VPN",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
             )
+            if (planLabel != null) {
+                Text(
+                    text = planLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        // Quiet by design: a plain text button, in the header, only once there is
+        // something to sign out of.
+        if (signedIn) {
+            TextButton(onClick = onSignOut) {
+                Text(
+                    text = "Sign out",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
@@ -230,7 +251,9 @@ private fun SignInFields(
             label = { Text("Password") },
             singleLine = true,
             enabled = enabled,
-            visualTransformation = PasswordVisualTransformation(),
+            // Hoisted: `PasswordVisualTransformation()` allocates, and the alternative is
+            // a fresh instance on every keystroke's recomposition.
+            visualTransformation = remember { PasswordVisualTransformation() },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth(),
         )

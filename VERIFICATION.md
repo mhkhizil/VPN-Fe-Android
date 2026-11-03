@@ -100,15 +100,35 @@ reporting a false failure right after consent; `GeneratedKeyPair.toString()` red
 the private key, pinned by `GeneratedKeyPairTest`; responses are read through
 `peekBody(64 KiB)` instead of an unbounded `body.string()`.
 
-Still open, named rather than hidden: the app's own API traffic still egresses through
-the tunnel (the tunnel library exposes no `addDisallowedApplication`), the bearer token
-is never rehydrated or rotated, there is no recovery path if the Keystore is reset, and
-recomposition hygiene in `VpnScreen` is unaddressed.
+Still open, named rather than hidden: there is no engine `close()` (the backend is
+process-scoped, so its thread lives until process death), and the engine has no tunnel
+statistics or reconnect backoff yet — those are features, not defects, and they need a
+device to validate.
+
+Fixed in the same follow-up pass, because "cannot be fixed through the library" turned
+out to be wrong:
+
+- **The app's own API traffic no longer goes through the tunnel.** `TunnelSockets.kt`
+  supplies a `SocketFactory` that calls `VpnService.protect()` on each socket *before*
+  connecting it — which is the only moment that works, and the reason a delegate factory
+  returning connected sockets would silently do nothing. `ProtectingSocketFactoryTest`
+  asserts the ordering, and that a missing exemption degrades to "connects anyway" rather
+  than a failed sign-in.
+- **The token survives process death and rotates.** `VpnApi` hydrates from the session
+  store on first use, persists rotations, and rotates once + retries once on `401`.
+  Sign-out exists in the UI (header button) and clears key, ids and token on IO.
+- **A reset keystore no longer bricks the app.** Both stores are nullable and null-safe;
+  losing the key degrades to "not provisioned", which the idempotent pipeline fixes on the
+  next sign-in.
+- **Recomposition hygiene**: derived labels and the sign-out callback are `remember`ed
+  against their inputs; `PasswordVisualTransformation()` is hoisted.
+- **A Gradle wrapper exists**, so `./gradlew` works instead of only a `gradle` on `PATH`.
 
 ```
-tests=30 failures=0        (27 -> 28 -> 30 across this pass)
-lintDebug: BUILD SUCCESSFUL, 11 warnings, 0 errors
-assembleDebug: app-debug.apk, 24 MB, signed and installable
+tests=33 failures=0        (27 -> 28 -> 30 -> 33)
+lintDebug: 0 errors, 11 warnings
+assembleDebug: app-debug.apk, signed and installable
+compileDebugAndroidTestKotlin: 9 instrumented tests compile
 ```
 
 Checked and found **clean**, so no change was made: no `android.util.Log` call exists

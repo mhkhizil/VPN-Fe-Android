@@ -58,14 +58,20 @@ class KeystoreSecretStore(context: Context) : SecretStore {
     // in the constructor means MainActivity.onCreate pays that cost on the first frame.
     // Nothing touches this store from the UI thread any more, so first use is already
     // on a background dispatcher.
-    private val prefs: SharedPreferences by lazy {
-        EncryptedSharedPreferences.create(
-            appContext,
-            "vpn-secrets",
-            MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+    // Null when the keystore cannot be opened at all (a factory reset or re-key leaves
+    // ciphertext this master key cannot read). Degrading to "no key stored" is deliberate:
+    // onboarding is idempotent and will generate and upload a fresh keypair, whereas
+    // throwing here would crash every launch with no way back.
+    private val prefs: SharedPreferences? by lazy {
+        runCatching {
+            EncryptedSharedPreferences.create(
+                appContext,
+                "vpn-secrets",
+                MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrNull()
     }
 
     override fun storePrivateKey(base64: String) {
@@ -77,11 +83,11 @@ class KeystoreSecretStore(context: Context) : SecretStore {
         val payload = ByteArray(iv.size + encrypted.size)
         System.arraycopy(iv, 0, payload, 0, iv.size)
         System.arraycopy(encrypted, 0, payload, iv.size, encrypted.size)
-        prefs.edit().putString(KEY_WRAPPED, Base64.encodeToString(payload, Base64.NO_WRAP)).apply()
+        prefs?.edit()?.putString(KEY_WRAPPED, Base64.encodeToString(payload, Base64.NO_WRAP))?.apply()
     }
 
     override fun loadPrivateKey(): String? {
-        val stored = prefs.getString(KEY_WRAPPED, null) ?: return null
+        val stored = prefs?.getString(KEY_WRAPPED, null) ?: return null
         val payload = Base64.decode(stored, Base64.NO_WRAP)
         if (payload.size <= IV_BYTES) return null
         return runCatching {
@@ -96,7 +102,7 @@ class KeystoreSecretStore(context: Context) : SecretStore {
     }
 
     override fun clear() {
-        prefs.edit().remove(KEY_WRAPPED).apply()
+        prefs?.edit()?.remove(KEY_WRAPPED)?.apply()
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         if (keyStore.containsAlias(ALIAS)) keyStore.deleteEntry(ALIAS)
     }
@@ -135,33 +141,46 @@ class PrefsSessionStore(context: Context) : SessionStore {
 
     // Lazy for the same reason as KeystoreSecretStore: create() touches the Keystore and
     // disk, and MainActivity used to pay for it during onCreate.
-    private val prefs: SharedPreferences by lazy {
-        EncryptedSharedPreferences.create(
-            appContext,
-            "vpn-session",
-            MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+    // Same reasoning as KeystoreSecretStore: lazy, and nullable so a broken keystore
+    // degrades to "nothing stored" instead of crashing every launch. Losing the token
+    // costs the user one sign-in; the alternative costs them the app.
+    private val prefs: SharedPreferences? by lazy {
+        runCatching {
+            EncryptedSharedPreferences.create(
+                appContext,
+                "vpn-session",
+                MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrNull()
     }
 
     override var accessToken: String?
-        get() = prefs.getString("access_token", null)
-        set(value) = prefs.edit().putString("access_token", value).apply()
+        get() = prefs?.getString("access_token", null)
+        set(value) {
+            prefs?.edit()?.putString("access_token", value)?.apply()
+        }
 
     override var deviceId: String?
-        get() = prefs.getString("device_id", null)
-        set(value) = prefs.edit().putString("device_id", value).apply()
+        get() = prefs?.getString("device_id", null)
+        set(value) {
+            prefs?.edit()?.putString("device_id", value)?.apply()
+        }
 
     override var peerId: String?
-        get() = prefs.getString("peer_id", null)
-        set(value) = prefs.edit().putString("peer_id", value).apply()
+        get() = prefs?.getString("peer_id", null)
+        set(value) {
+            prefs?.edit()?.putString("peer_id", value)?.apply()
+        }
 
     override var publicKeyHex: String?
-        get() = prefs.getString("public_key_hex", null)
-        set(value) = prefs.edit().putString("public_key_hex", value).apply()
+        get() = prefs?.getString("public_key_hex", null)
+        set(value) {
+            prefs?.edit()?.putString("public_key_hex", value)?.apply()
+        }
 
     override fun clear() {
-        prefs.edit().clear().apply()
+        prefs?.edit()?.clear()?.apply()
     }
 }
