@@ -144,12 +144,12 @@ Design decisions worth keeping:
 
 ## Local build (verified, not just CI)
 
-This project now builds and tests on the development machine, using Android Studio`s
+This project now builds and tests on the development machine, using Android Studio's
 own SDK plus a cached Gradle:
 
 | Requirement | Value | Why |
 |---|---|---|
-| JDK | **17-21** | Kotlin 2.0.21 crashes on **JDK 25** with `IllegalArgumentException: 25.0.3` - its bundled IntelliJ `JavaVersion` parser does not know that version. Studio`s current JBR is 25, so point `JAVA_HOME` at a JDK 21 (e.g. `~/.jdks/jbr-21.0.11`). |
+| JDK | **17-21** | Kotlin 2.0.21 crashes on **JDK 25** with `IllegalArgumentException: 25.0.3` - its bundled IntelliJ `JavaVersion` parser does not know that version. Studio's current JBR is 25, so point `JAVA_HOME` at a JDK 21 (e.g. `~/.jdks/jbr-21.0.11`). |
 | Gradle | 8.7 | AGP 8.5.2 pairs with it; AGP 8.7+ requires Gradle 8.9 and would need a download. |
 | compileSdk / targetSdk | 34 | Matches `platforms;android-34` and `build-tools;34.0.0` installed locally, so local and CI build the same thing. |
 
